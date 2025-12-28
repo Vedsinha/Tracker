@@ -40,7 +40,7 @@ const ratio = computed(() => {
   return Math.round((signalCount.value / total) * 100);
 });
 
-const activeTab = ref<"planning" | "execution" | "stats">("planning");
+const activeTab = ref<"planning" | "execution" | "stats">("execution");
 </script>
 
 <template>

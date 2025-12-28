@@ -45,7 +45,7 @@ const ratio = computed(() => {
   return Math.round(signalCount.value / noiseCount.value);
 });
 
-const activeTab = ref<"planning" | "execution" | "stats">("planning");
+const activeTab = ref<"planning" | "execution" | "stats">("execution");
 
 const password = ref("");
 const isUnlocked = ref(checkSession());
