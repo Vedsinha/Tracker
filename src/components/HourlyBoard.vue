@@ -38,7 +38,9 @@ const handleTypeChange = (blockId: string, event: Event) => {
   </div>
 
   <div class="overflow-hidden rounded-2xl border border-black/20 shadow-[0_10px_40px_-30px_rgba(0,0,0,0.85)]">
-    <div class="grid grid-cols-[1fr_2fr_1fr] bg-black text-white text-[0.8rem] font-semibold uppercase tracking-[0.12em]">
+    <div
+      class="grid grid-cols-[1fr_2fr_1fr] bg-black text-center text-white text-[0.8rem] font-semibold uppercase tracking-[0.12em]"
+    >
       <div class="border-r border-white/20 px-4 py-3">Time slot</div>
       <div class="border-r border-white/20 px-4 py-3">Activity / Task</div>
       <div class="px-4 py-3">Type</div>
@@ -71,10 +73,15 @@ const handleTypeChange = (blockId: string, event: Event) => {
         <div class="flex items-center justify-between gap-2 px-4 py-3 text-sm">
           <template v-if="editable">
             <select
-              :value="entries[block.id]?.type ?? 'Sleep'"
+              :value="
+                entries[block.id]?.type === 'Sleep' && !entries[block.id]?.task
+                  ? ''
+                  : entries[block.id]?.type ?? ''
+              "
               @change="handleTypeChange(block.id, $event)"
               class="w-full rounded-lg border border-black/20 bg-white px-3 py-2 text-sm font-semibold text-black outline-none transition focus:border-black focus:ring-2 focus:ring-black/15"
             >
+              <option disabled value="">Select type</option>
               <option value="Signal">Signal</option>
               <option value="Noise">Noise</option>
               <option value="Sleep">Sleep</option>
@@ -84,7 +91,11 @@ const handleTypeChange = (blockId: string, event: Event) => {
             <span
               class="inline-flex w-full items-center justify-center rounded-full border border-black/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-800"
             >
-              {{ entries[block.id]?.type || "Sleep" }}
+              {{
+                entries[block.id]?.type === "Sleep" && !entries[block.id]?.task
+                  ? "—"
+                  : entries[block.id]?.type || "—"
+              }}
             </span>
           </template>
         </div>

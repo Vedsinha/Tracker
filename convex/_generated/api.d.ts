@@ -9,6 +9,10 @@
  */
 
 import type * as entries from "../entries.js";
+import type * as project from "../project.js";
+import type * as projectTasks from "../projectTasks.js";
+import type * as projects from "../projects.js";
+import type * as tasks from "../tasks.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +22,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   entries: typeof entries;
+  project: typeof project;
+  projectTasks: typeof projectTasks;
+  projects: typeof projects;
+  tasks: typeof tasks;
 }>;
 
 /**
