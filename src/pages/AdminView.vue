@@ -3,10 +3,9 @@ import { ref } from "vue";
 import HourlyBoard from "../components/HourlyBoard.vue";
 import type { HourEntry } from "../composables/useHourlyLog";
 import { useHourlyLog } from "../composables/useHourlyLog";
-import process = require("process");
 
-const ADMIN_PASSWORD = process.env.VITE_ADMIN_PASSWORD;
-const SESSION_KEY = process.env.VITE_SESSION_KEY;
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? "tracker@14042023";
+const SESSION_KEY = import.meta.env.VITE_SESSION_KEY ?? "hourly-tracker-admin";
 
 const {
   timeBlocks,

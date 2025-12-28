@@ -1,4 +1,7 @@
+import { ConvexClient } from "convex/browser";
 import { computed, ref, watch } from "vue";
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 
 export type TimeBlock = {
   id: string;
@@ -10,13 +13,11 @@ export type TimeBlock = {
 export type EntryType = "Signal" | "Noise" | "Sleep";
 
 export type HourEntry = {
+  _id?: Id<"entries">;
   task: string;
   type: EntryType;
 };
 
-type LogsByDate = Record<string, Record<string, HourEntry>>;
-
-const STORAGE_KEY = "hourly-tracker-log";
 const START_HOUR = 4;
 const BLOCK_COUNT = 24;
 
@@ -31,29 +32,42 @@ const timeBlocks: TimeBlock[] = Array.from({ length: BLOCK_COUNT }, (_, index) =
   };
 });
 
-const logs = ref<LogsByDate>(loadLogs());
 const selectedDate = ref<string>(getTodayKey());
 
-ensureDay(selectedDate.value);
-
-watch(
-  logs,
-  (value) => {
-    persist(value);
-  },
-  { deep: true }
+const convexUrl = import.meta.env.VITE_CONVEX_URL;
+const convexClient = new ConvexClient(convexUrl);
+const fetched = ref<{ _id: Id<"entries">; blockId: string; task: string; type: EntryType; startHour: number }[]>(
+  []
 );
+const isPending = ref(false);
+const isSaving = ref(false);
 
 const currentEntries = computed<Record<string, HourEntry>>(() => {
-  ensureDay(selectedDate.value);
-  const day = logs.value[selectedDate.value];
-  if (!day) {
-    const empty = createEmptyDay();
-    logs.value[selectedDate.value] = empty;
-    return empty;
-  }
-  return day;
+  const defaults: Record<string, HourEntry> = createEmptyDay();
+  const docs = fetched.value ?? [];
+  docs.forEach((doc) => {
+    defaults[doc.blockId] = { _id: doc._id, task: doc.task, type: doc.type };
+  });
+  return defaults;
 });
+
+async function loadDay() {
+  isPending.value = true;
+  try {
+    const rows = await convexClient.query(api.entries.getDay, { day: selectedDate.value });
+    fetched.value = rows;
+  } finally {
+    isPending.value = false;
+  }
+}
+
+watch(
+  selectedDate,
+  () => {
+    loadDay();
+  },
+  { immediate: true }
+);
 
 function formatHour(hour: number) {
   const normalized = ((hour % 24) + 24) % 24;
@@ -70,55 +84,12 @@ function createEmptyDay() {
   return entries;
 }
 
-function ensureDay(dateKey: string) {
-  if (!logs.value[dateKey]) {
-    logs.value[dateKey] = createEmptyDay();
-    return;
-  }
-  const day = logs.value[dateKey];
-  Object.keys(day).forEach((key) => {
-    const value = day[key];
-    if (!value) {
-      day[key] = { task: "", type: "Sleep" };
-      return;
-    }
-    if (typeof value === "string") {
-      day[key] = { task: value, type: "Sleep" };
-      return;
-    }
-    day[key] = {
-      task: value.task ?? "",
-      type: (value.type as EntryType) ?? "Sleep",
-    };
-  });
-}
-
 function getTodayKey() {
   const now = new Date();
   const year = now.getFullYear();
   const month = `${now.getMonth() + 1}`.padStart(2, "0");
   const day = `${now.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function loadLogs(): LogsByDate {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      return parsed as LogsByDate;
-    }
-  } catch (error) {
-    console.warn("Unable to read saved logs, starting fresh.", error);
-  }
-  return {};
-}
-
-function persist(value: LogsByDate) {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
 }
 
 function formatDateLabel(dateKey: string) {
@@ -146,21 +117,29 @@ function formatCompactLabel(dateKey: string) {
 
 function setDate(dateKey: string) {
   selectedDate.value = dateKey;
-  ensureDay(dateKey);
 }
 
 function updateEntry(blockId: string, value: Partial<HourEntry>) {
-  ensureDay(selectedDate.value);
-  const day = logs.value[selectedDate.value];
-  if (!day) return;
-  day[blockId] = {
-    task: value.task ?? day[blockId]?.task ?? "",
-    type: value.type ?? day[blockId]?.type ?? "Sleep",
-  };
-}
+  const block = timeBlocks.find((b) => b.id === blockId);
+  if (!block) return;
 
-function resetDay(dateKey: string) {
-  logs.value[dateKey] = createEmptyDay();
+  const existing = currentEntries.value[blockId];
+  const nextTask = value.task ?? existing?.task ?? "";
+  const nextType = value.type ?? existing?.type ?? "Sleep";
+
+  isSaving.value = true;
+  convexClient
+    .mutation(api.entries.setEntry, {
+      day: selectedDate.value,
+      blockId,
+      startHour: block.start,
+      task: nextTask,
+      type: nextType,
+    })
+    .then(() => loadDay())
+    .finally(() => {
+      isSaving.value = false;
+    });
 }
 
 export function useHourlyLog() {
@@ -173,6 +152,8 @@ export function useHourlyLog() {
     compactLabel,
     timeBlocks,
     currentEntries,
+    isLoading: isPending,
+    isSaving,
     setDate,
     setToToday: () => setDate(getTodayKey()),
     moveDay: (delta: number) => {
@@ -185,6 +166,5 @@ export function useHourlyLog() {
       setDate(`${year}-${month}-${day}`);
     },
     updateEntry,
-    resetDay,
   };
 }
