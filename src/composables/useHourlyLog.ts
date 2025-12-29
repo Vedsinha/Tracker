@@ -18,7 +18,7 @@ export type HourEntry = {
   type: EntryType;
 };
 
-const START_HOUR = 4;
+const START_HOUR = 10;
 const BLOCK_COUNT = 24;
 
 const timeBlocks: TimeBlock[] = Array.from({ length: BLOCK_COUNT }, (_, index) => {
@@ -36,26 +36,23 @@ const selectedDate = ref<string>(getTodayKey());
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
 const convexClient = new ConvexClient(convexUrl);
-const fetched = ref<{ _id: Id<"entries">; blockId: string; task: string; type: EntryType; startHour: number }[]>(
-  []
-);
+const entries = ref<Record<string, HourEntry>>(createEmptyDay());
 const isPending = ref(false);
 const isSaving = ref(false);
+const dirtyBlocks = ref<Set<string>>(new Set());
 
-const currentEntries = computed<Record<string, HourEntry>>(() => {
-  const defaults: Record<string, HourEntry> = createEmptyDay();
-  const docs = fetched.value ?? [];
-  docs.forEach((doc) => {
-    defaults[doc.blockId] = { _id: doc._id, task: doc.task, type: doc.type };
-  });
-  return defaults;
-});
+const currentEntries = computed<Record<string, HourEntry>>(() => entries.value);
 
 async function loadDay() {
   isPending.value = true;
   try {
     const rows = await convexClient.query(api.entries.getDay, { day: selectedDate.value });
-    fetched.value = rows;
+    const mapped: Record<string, HourEntry> = createEmptyDay();
+    rows.forEach((row: { _id: Id<"entries">; blockId: string; task: string; type: EntryType }) => {
+      mapped[row.blockId] = { _id: row._id, task: row.task, type: row.type };
+    });
+    entries.value = mapped;
+    dirtyBlocks.value = new Set();
   } finally {
     isPending.value = false;
   }
@@ -64,6 +61,7 @@ async function loadDay() {
 watch(
   selectedDate,
   () => {
+    dirtyBlocks.value = new Set();
     loadDay();
   },
   { immediate: true }
@@ -123,23 +121,44 @@ function updateEntry(blockId: string, value: Partial<HourEntry>) {
   const block = timeBlocks.find((b) => b.id === blockId);
   if (!block) return;
 
-  const existing = currentEntries.value[blockId];
-  const nextTask = value.task ?? existing?.task ?? "";
-  const nextType = value.type ?? existing?.type ?? "Sleep";
+  const existing = entries.value[blockId] ?? { task: "", type: "Sleep" };
+  const nextTask = value.task ?? existing.task ?? "";
+  const nextType = value.type ?? existing.type ?? "Sleep";
 
+  entries.value = {
+    ...entries.value,
+    [blockId]: { ...existing, task: nextTask, type: nextType },
+  };
+
+  dirtyBlocks.value = new Set([...dirtyBlocks.value, blockId]);
+}
+
+async function saveDirtyEntries() {
+  const blockIds = Array.from(dirtyBlocks.value);
+  if (blockIds.length === 0) return;
+
+  const dayKey = selectedDate.value;
   isSaving.value = true;
-  convexClient
-    .mutation(api.entries.setEntry, {
-      day: selectedDate.value,
-      blockId,
-      startHour: block.start,
-      task: nextTask,
-      type: nextType,
-    })
-    .then(() => loadDay())
-    .finally(() => {
-      isSaving.value = false;
-    });
+  try {
+    await Promise.all(
+      blockIds.map((blockId) => {
+        const block = timeBlocks.find((b) => b.id === blockId);
+        if (!block) return Promise.resolve();
+        const entry = entries.value[blockId] ?? { task: "", type: "Sleep" };
+        return convexClient.mutation(api.entries.setEntry, {
+          day: dayKey,
+          blockId,
+          startHour: block.start,
+          task: entry.task,
+          type: entry.type,
+        });
+      })
+    );
+    dirtyBlocks.value = new Set();
+    await loadDay();
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 export function useHourlyLog() {
@@ -166,5 +185,6 @@ export function useHourlyLog() {
       setDate(`${year}-${month}-${day}`);
     },
     updateEntry,
+    saveDirtyEntries,
   };
 }

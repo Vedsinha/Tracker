@@ -23,6 +23,8 @@ const {
   moveDay,
   selectedDate,
   updateEntry,
+  isSaving,
+  saveDirtyEntries,
 } = useHourlyLog();
 
 const { projects, selectedProjectId, addProject, selectProject } = useProject(selectedDate);
@@ -50,6 +52,7 @@ const activeTab = ref<"planning" | "execution" | "stats">("execution");
 const password = ref("");
 const isUnlocked = ref(checkSession());
 const error = ref("");
+const locking = ref(false);
 
 function checkSession() {
   if (typeof sessionStorage === "undefined") return false;
@@ -77,9 +80,16 @@ function handleSubmit() {
   }
 }
 
-function lockEditing() {
+async function lockEditing() {
+  if (locking.value) return;
+  locking.value = true;
   isUnlocked.value = false;
-  persistSession(false);
+  try {
+    await saveDirtyEntries();
+  } finally {
+    persistSession(false);
+    locking.value = false;
+  }
 }
 
 function handleUpdate(payload: { id: string; value: Partial<HourEntry> }) {
@@ -172,10 +182,11 @@ function handleUpdate(payload: { id: string; value: Partial<HourEntry> }) {
       <button
         v-if="isUnlocked"
         type="button"
-        class="rounded-xl border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:-translate-y-[1px]"
+        class="rounded-xl border border-black bg-white px-4 py-2 text-sm font-semibold text-black transition hover:-translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-60"
+        :disabled="isSaving || locking"
         @click="lockEditing"
       >
-        Lock
+        {{ isSaving || locking ? "Saving..." : "Lock" }}
       </button>
     </form>
     <p v-if="error" class="w-full text-center text-sm text-red-600">{{ error }}</p>
