@@ -1,14 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-export const getDay = query({
-  args: { day: v.string() },
-  handler: async (ctx, args) => {
-    const rows = await ctx.db
-      .query("projects")
-      .withIndex("by_day_created", (q) => q.eq("day", args.day))
-      .order("asc")
-      .collect();
+export const getAll = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("projects").withIndex("by_createdAt").order("asc").collect();
     return rows.map((row) => ({
       ...row,
       done: row.done ?? false,
@@ -31,10 +27,9 @@ export const getCompletedInTimeRange = query({
 });
 
 export const add = mutation({
-  args: { day: v.string(), name: v.string() },
+  args: { name: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db.insert("projects", {
-      day: args.day,
       name: args.name.trim(),
       done: false,
       createdAt: Date.now(),

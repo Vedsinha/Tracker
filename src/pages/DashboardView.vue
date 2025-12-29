@@ -14,7 +14,7 @@ import { useTasks } from "../composables/useTasks";
 
 const { timeBlocks, currentEntries, compactLabel, moveDay, selectedDate } =
   useHourlyLog();
-const { projects, selectedProjectId, selectProject } = useProject(selectedDate);
+const { projects, selectedProjectId, selectProject } = useProject();
 const { tasks, toggleTask, pendingCount } = useTasks(selectedDate);
 const {
   tasks: projectTasks,

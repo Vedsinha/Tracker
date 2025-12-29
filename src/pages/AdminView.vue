@@ -27,7 +27,7 @@ const {
   saveDirtyEntries,
 } = useHourlyLog();
 
-const { projects, selectedProjectId, addProject, selectProject } = useProject(selectedDate);
+const { projects, selectedProjectId, addProject, selectProject } = useProject();
 const { tasks: projectTasks, addTask: addProjectTask, toggleTask: toggleProjectTask } =
   useProjectTasks(selectedProjectId);
 const { tasks, addTask, toggleTask, pendingCount } = useTasks(selectedDate);

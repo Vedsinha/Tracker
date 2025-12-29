@@ -31,6 +31,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   })
     .index("by_day_created", ["day", "createdAt"])
+    .index("by_createdAt", ["createdAt"])
     .index("by_completedAt", ["completedAt"]),
   projectTasks: defineTable({
     projectId: v.id("projects"),

@@ -1,5 +1,5 @@
 import { ConvexClient } from "convex/browser";
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -9,7 +9,7 @@ export type ProjectDoc = {
   done: boolean;
 };
 
-export function useProject(dayRef: { value: string }) {
+export function useProject() {
   const convexClient = new ConvexClient(import.meta.env.VITE_CONVEX_URL);
   const projects = ref<ProjectDoc[]>([]);
   const selectedProjectId = ref<Id<"projects"> | null>(null);
@@ -19,7 +19,7 @@ export function useProject(dayRef: { value: string }) {
   async function load() {
     isLoading.value = true;
     try {
-      const rows = await convexClient.query(api.projects.getDay, { day: dayRef.value });
+      const rows = await convexClient.query(api.projects.getAll, {});
       projects.value = rows as ProjectDoc[];
       const firstId = rows[0]?._id as Id<"projects"> | undefined;
       if (!selectedProjectId.value && firstId) {
@@ -39,7 +39,7 @@ export function useProject(dayRef: { value: string }) {
     if (!name.trim()) return;
     isSaving.value = true;
     try {
-      const id = await convexClient.mutation(api.projects.add, { day: dayRef.value, name });
+      const id = await convexClient.mutation(api.projects.add, { name });
       await load();
       selectedProjectId.value = id as Id<"projects">;
     } finally {
@@ -57,11 +57,7 @@ export function useProject(dayRef: { value: string }) {
     }
   }
 
-  watch(
-    () => dayRef.value,
-    () => load(),
-    { immediate: true }
-  );
+  load();
 
   return {
     projects,
